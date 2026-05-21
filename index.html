@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Type-Sound-Type</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; min-height: 100%; background: #ffffff; font-family: system-ui, sans-serif; }
+body { overflow: hidden; }
+
+/* 상단 컨트롤 패널 */
+.control-panel {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 30;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.control-button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #000000;
+  padding: 5px 7px;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  min-width: 52px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.control-button:hover { opacity: 0.6; }
+.control-button:active { opacity: 0.35; }
+
+.icon-button {
+  padding: 0;
+  width: 52px;
+  height: 24px;
+  min-width: 52px;
+  min-height: 24px;
+}
+
+.icon-button svg {
+  width: 28px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+#stopLoopButton {
+  min-width: 74px;
+  text-align: center;
+  padding-left: 7px;
+}
+
+/* 에디터 영역 */
+.app { width: 100%; min-height: 100vh; background: #ffffff; }
+
+.editor {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  padding: 48px 48px 0 48px;
+  background: #ffffff;
+  overflow-y: auto;
+  overflow-x: hidden;
+  color: #000000;
+  letter-spacing: 0.2em;
+  line-height: 1.5;
+  scroll-padding-bottom: 25px;
+}
+
+.image-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  width: 100vw;
+  height: 100vh;
+}
+
+.editor-content {
+  position: relative;
+  z-index: 3;
+  min-height: calc(100vh - 96px - 160px);
+  outline: none;
+  color: #000000;
+  padding-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.text-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 32px;
+}
+.text-line-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.text-line-button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #000000;
+  min-width: 52px;
+  padding: 5px 7px;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+.text-line-button:hover { opacity: 0.6; }
+.text-line-button:active { opacity: 0.35; }
+
+.live-input {
+  min-height: 32px;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+.live-input:empty::before {
+  content: "TYPE HERE...";
+  color: #000000;
+}
+
+.editor-bottom-space {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  height: 160px;
+  pointer-events: none;
+  flex: 0 0 160px;
+}
+
+/* 타이핑 시 뜨는 이미지 */
+.flash-image {
+  position: absolute;
+  z-index: 1;
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
+  opacity: 0;
+  transform: scale(0.9);
+  animation: popFlash 700ms linear forwards;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+@keyframes popFlash {
+  0% { opacity: 0; transform: scale(0.9); }
+  12% { opacity: 1; transform: scale(1); }
+  99% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+/* PDF 오버레이 */
+.pdf-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.96);
+  display: flex;
+  flex-direction: column;
+  padding: 48px 24px 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.pdf-overlay.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pdf-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pdf-preview-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  background: #f7f7f7;
+}
+
+.pdf-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  background: #ffffff;
+  color: #000000;
+  padding: 10mm 9mm 10mm; /* 화면 미리보기용 여백 (줄어든 버전) */
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pdf-header {
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  margin-bottom: 8mm; /* 날짜/시간 아래 줄간격 */
+}
+
+.pdf-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4mm;
+}
+
+.pdf-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  align-content: flex-start;
+  gap: 2.2mm;
+  width: 100%;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.pdf-line.is-empty {
+  min-height: 6mm;
+}
+
+.pdf-image {
+  width: 12mm;
+  height: 12mm;
+  object-fit: contain;
+  flex: 0 0 12mm;
+}
+
+/* 모바일 레이아웃 */
+@media (max-width: 980px) {
+  body { overflow: auto; }
+  .editor {
+    height: auto;
+    min-height: auto;
+    padding: 48px 24px 0 24px;
+    overflow: visible;
+  }
+  .editor-content { min-height: auto; }
+  .editor-bottom-space { height: 80px; flex-basis: 80px; }
+  .pdf-overlay { padding: 48px 12px 12px; }
+  .pdf-preview-wrap { padding: 12px; }
+  .pdf-page {
+    width: 100%;
+    min-height: auto;
+    padding: 24px 16px;
+  }
+  .pdf-header { margin-bottom: 28px; }
+  .pdf-line { gap: 6px; }
+  .pdf-image {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+}
+
+/* 실제 인쇄용 설정 */
+@media print {
+  html, body {
+    width: auto;
+    height: auto;
+    overflow: visible;
+    background: #ffffff;
+  }
+  body * { visibility: hidden; }
+  .pdf-overlay, .pdf-overlay * { visibility: visible; }
+  .pdf-overlay {
+    position: absolute;
+    inset: 0;
+    background: #ffffff;
+    padding: 0;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .pdf-toolbar { display: none; }
+  .pdf-preview-wrap {
+    border: 0;
+    padding: 0;
+    overflow: visible;
+    background: #ffffff;
+  }
+  .pdf-page {
+    margin: 0;
+    box-shadow: none;
+    width: auto;
+    min-height: auto;
+    padding: 6mm 5mm 6mm; /* 인쇄 시 실제 A4 안쪽 여백 (더 줄어든 버전) */
+    display: block;
+  }
+  .pdf-header {
+    margin-bottom: 8mm;
+  }
+  .pdf-lines {
+    display: block;
+  }
+  .pdf-line {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-bottom: 4mm;
+  }
+  @page {
+    size: A4;
+    margin: 8mm; /* 프린터 기준 페이지 여백 */
+  }
+}
+</style>
+</head>
+<body>
+<div class="control-panel">
+  <!-- 이미지 전환 버튼 (눈 아이콘) -->
+  <button class="control-button icon-button" id="imageSwitchButton" type="button" aria-label="이미지 전환" aria-pressed="false">
+    <svg viewBox="0 0 28 14" aria-hidden="true">
+      <path d="M7 7c1.8-2.2 4.2-3.3 7-3.3S19.2 4.8 21 7c-1.8 2.2-4.2 3.3-7 3.3S8.8 9.2 7 7Z" />
+      <circle cx="14" cy="7" r="1.8" fill="currentColor" stroke="none" />
+    </svg>
+  </button>
+  <!-- PDF 추출 버튼 (내보내기 픽토그램) -->
+  <button class="control-button icon-button" id="exportPdfButton" type="button" aria-label="PDF 추출 열기">
+    <svg viewBox="0 0 28 14" aria-hidden="true">
+      <path d="M14 2.5v5.5" />
+      <path d="M11.5 5.8 14 8.6l2.5-2.8" />
+      <path d="M8.5 10.5h11" />
+    </svg>
+  </button>
+  <!-- SILENCE! 버튼 -->
+  <button class="control-button" id="stopLoopButton" type="button" aria-label="모든 누적 사운드 루프 정지">SILENCE!</button>
+</div>
+
+<div class="app">
+  <div class="editor">
+    <div class="image-layer"></div>
+    <div class="editor-content" id="editorContent">
+      <div class="live-input" id="liveInput" contenteditable="true" spellcheck="false"></div>
+    </div>
+    <div class="editor-bottom-space" aria-hidden="true"></div>
+  </div>
+</div>
+
+<!-- PDF 미리보기 오버레이 -->
+<div class="pdf-overlay" id="pdfOverlay" aria-hidden="true">
+  <div class="pdf-toolbar">
+    <button class="control-button" id="downloadPdfButton" type="button">SAVE PDF</button>
+    <button class="control-button" id="closePdfButton" type="button">CLOSE</button>
+  </div>
+  <div class="pdf-preview-wrap">
+    <div class="pdf-page" id="pdfPage">
+      <div class="pdf-header" id="pdfHeader"></div>
+      <div class="pdf-lines" id="pdfLines"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 이미지 / 사운드 매핑 */
+const primaryImageMap = {
+  a: "images/A.png", b: "images/B.png", c: "images/C.png", d: "images/D.png", e: "images/E.png",
+  f: "images/F.png", g: "images/G.png", h: "images/H.png", i: "images/I.png", j: "images/J.png",
+  k: "images/K.png", l: "images/L.png", m: "images/M.png", n: "images/N.png", o: "images/O.png",
+  p: "images/P.png", q: "images/Q.png", r: "images/R.png", s: "images/S.png", t: "images/T.png",
+  u: "images/U.png", v: "images/V.png", w: "images/W.png", x: "images/X.png", y: "images/Y.png",
+  z: "images/Z.png"
+};
+
+const toggleImageMap = {
+  a: "images/secondary-a.png", b: "images/secondary-b.png", c: "images/secondary-c.png", d: "images/secondary-d.png", e: "images/secondary-e.png",
+  f: "images/secondary-f.png", g: "images/secondary-g.png", h: "images/secondary-h.png", i: "images/secondary-i.png", j: "images/secondary-j.png",
+  k: "images/secondary-k.png", l: "images/secondary-l.png", m: "images/secondary-m.png", n: "images/secondary-n.png", o: "images/secondary-o.png",
+  p: "images/secondary-p.png", q: "images/secondary-q.png", r: "images/secondary-r.png", s: "images/secondary-s.png", t: "images/secondary-t.png",
+  u: "images/secondary-u.png", v: "images/secondary-v.png", w: "images/secondary-w.png", x: "images/secondary-x.png", y: "images/secondary-y.png",
+  z: "images/secondary-z.png"
+};
+
+const soundMap = {
+  a: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-a.mp3",
+  b: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-b.mp3",
+  c: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-c.mp3",
+  d: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-d.mp3",
+  e: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-e.mp3",
+  f: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-f.mp3",
+  g: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-g.mp3",
+  h: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-h.mp3",
+  i: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-i.mp3",
+  j: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-j.mp3",
+  k: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-k.mp3",
+  l: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-l.mp3",
+  m: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-m.mp3",
+  n: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-n.mp3",
+  o: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-o.mp3",
+  p: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-p.mp3",
+  q: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-q.mp3",
+  r: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-r.mp3",
+  s: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-s.mp3",
+  t: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-t.mp3",
+  u: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-u.mp3",
+  v: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-v.mp3",
+  w: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-w.mp3",
+  x: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-x.mp3",
+  y: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-y.mp3",
+  z: "https://raw.githubusercontent.com/ginsiho/type-sound/main/sound-z.mp3",
+};
+
+/* 오디오 초기화 */
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+const audioBuffers = new Map();
+
+async function loadAudio(url) {
+  if (audioBuffers.has(url)) return audioBuffers.get(url);
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  audioBuffers.set(url, audioBuffer);
+  return audioBuffer;
+}
+
+Object.values(soundMap).forEach(loadAudio);
+
+function playSound(key, volume = 1) {
+  const url = soundMap[key];
+  if (!url || !audioBuffers.has(url)) return;
+  const buffer = audioBuffers.get(url);
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  const gainNode = audioContext.createGain();
+  gainNode.gain.value = volume;
+  source.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  source.start(0);
+}
+
+/* DOM 참조 */
+const editorContent = document.querySelector("#editorContent");
+const liveInput = document.querySelector("#liveInput");
+const imageLayer = document.querySelector(".image-layer");
+const stopLoopButton = document.querySelector("#stopLoopButton");
+const imageSwitchButton = document.querySelector("#imageSwitchButton");
+const exportPdfButton = document.querySelector("#exportPdfButton");
+const pdfOverlay = document.querySelector("#pdfOverlay");
+const pdfHeader = document.querySelector("#pdfHeader");
+const pdfLines = document.querySelector("#pdfLines");
+const closePdfButton = document.querySelector("#closePdfButton");
+const downloadPdfButton = document.querySelector("#downloadPdfButton");
+
+/* 상태 값 */
+let currentLineSequence = [];
+let currentLineTextKeys = [];
+let currentLineStartTime = null;
+let loopLayers = [];
+let layerIdCounter = 0;
+let committedEntries = [];
+let useToggleImages = false;
+let typingSessionStartedAt = null;
+
+/* 포커스 / 커서 */
+function placeCaretAtEnd(el) {
+  const range = document.createRange();
+  const selection = window.getSelection();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function focusLiveInput() {
+  liveInput.focus();
+  placeCaretAtEnd(liveInput);
+}
+
+/* 타이핑 이미지 표시 */
+function getTypingImageSrc(key) {
+  const map = useToggleImages ? toggleImageMap : primaryImageMap;
+  return map[key];
+}
+
+function showTypingImage(key) {
+  const src = getTypingImageSrc(key);
+  if (!src) return;
+  const img = document.createElement("img");
+  img.src = src;
+  img.className = "flash-image";
+  img.alt = "";
+
+  const size = useToggleImages ? 110 : 70;
+  const padding = 20;
+  const availableWidth = Math.max(window.innerWidth - size - padding * 2, 0);
+  const availableHeight = Math.max(window.innerHeight - size - padding * 2, 0);
+
+  img.style.width = `${size}px`;
+  img.style.height = `${size}px`;
+  img.style.left = `${padding + Math.random() * availableWidth}px`;
+  img.style.top = `${padding + Math.random() * availableHeight}px`;
+
+  imageLayer.appendChild(img);
+  img.addEventListener("animationend", () => img.remove());
+}
+
+/* 타이핑 기록 (사운드 루프용) */
+function recordKey(key) {
+  const now = performance.now();
+  if (currentLineStartTime === null) currentLineStartTime = now;
+  if (!typingSessionStartedAt) typingSessionStartedAt = new Date();
+  currentLineTextKeys.push(key);
+  currentLineSequence.push({ key, time: now - currentLineStartTime });
+}
+
+function resetCurrentLine() {
+  currentLineSequence = [];
+  currentLineTextKeys = [];
+  currentLineStartTime = null;
+}
+
+/* 루프 레이어 */
+function runLayerLoop(layer) {
+  if (!layer || !layer.active) return;
+
+  const now = audioContext.currentTime;
+  const leadTime = 0.05;
+  const startAt = Math.max(layer.nextStartAt || now, now + leadTime);
+
+  layer.sequence.forEach((item) => {
+    const playTime = startAt + (item.time / 1000);
+    const url = soundMap[item.key];
+    const buffer = audioBuffers.get(url);
+    if (buffer) {
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = layer.volume;
+      source.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      source.start(playTime);
+      layer.sources.push(source);
+    }
+  });
+
+  const durationSec = layer.duration / 1000;
+  layer.nextStartAt = startAt + durationSec;
+
+  layer.timeoutId = setTimeout(() => {
+    if (layer.active) runLayerLoop(layer);
+  }, (layer.nextStartAt - audioContext.currentTime) * 1000 - 50);
+}
+
+/* ★ 수정된 부분: enterTimeOffset 반영 */
+function createLoopLayer(sequence, enterTimeOffset) {
+  if (!sequence || sequence.length === 0) return null;
+
+  const lastKeyTime = sequence[sequence.length - 1].time;
+
+  let baseDuration = lastKeyTime + 120;
+  if (typeof enterTimeOffset === "number" && enterTimeOffset > lastKeyTime) {
+    baseDuration = enterTimeOffset + 120;
+  }
+
+  const duration = Math.max(baseDuration, 240);
+
+  return {
+    id: ++layerIdCounter,
+    sequence: sequence.map((item) => ({ ...item })),
+    duration,
+    volume: Math.max(0.18, 0.9 - loopLayers.length * 0.08),
+    active: true,
+    sources: [],
+    timeoutId: null,
+    nextStartAt: audioContext.currentTime + 0.1
+  };
+}
+
+function stopLayer(layer) {
+  if (!layer) return;
+  layer.active = false;
+  if (layer.timeoutId) clearTimeout(layer.timeoutId);
+  layer.sources.forEach(source => {
+    try { source.stop(); } catch (e) {}
+  });
+  layer.sources = [];
+}
+
+function stopAllLoopLayers() {
+  loopLayers.forEach((layer) => stopLayer(layer));
+  committedEntries.forEach((entry) => updateLineButton(entry));
+}
+
+function updateLineButton(entry) {
+  if (!entry || !entry.button || !entry.loopLayer) return;
+  const active = !!entry.loopLayer.active;
+  entry.button.textContent = active ? "STOP" : "PLAY";
+  entry.button.setAttribute("aria-pressed", String(active));
+  entry.button.setAttribute("aria-label", active ? "이 문장 루프 정지" : "이 문장 루프 재생");
+}
+
+function toggleLineLoop(entry) {
+  if (!entry || !entry.loopLayer) return;
+  if (entry.loopLayer.active) {
+    stopLayer(entry.loopLayer);
+  } else {
+    entry.loopLayer.active = true;
+    entry.loopLayer.nextStartAt = audioContext.currentTime + 0.1;
+    runLayerLoop(entry.loopLayer);
+  }
+  updateLineButton(entry);
+  focusLiveInput();
+}
+
+/* 텍스트에서 a–z 추출 */
+function extractKeysFromText(text) {
+  const chars = text.match(/[a-z]/gi) || [];
+  return chars.map((char) => char.toLowerCase());
+}
+
+/* ★ 수정된 부분: enterTimeOffset 추가 */
+function createCommittedLine(text, keys, sequence, enterTimeOffset) {
+  const lineEl = document.createElement("div");
+  lineEl.className = "text-line";
+
+  const textEl = document.createElement("div");
+  textEl.className = "text-line-text";
+  textEl.textContent = text;
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "text-line-button";
+  button.setAttribute("contenteditable", "false");
+
+  const loopLayer = createLoopLayer(sequence, enterTimeOffset);
+  if (loopLayer) {
+    loopLayers.push(loopLayer);
+    runLayerLoop(loopLayer);
+  }
+
+  const entry = {
+    text,
+    keys: [...keys],
+    sequence: sequence.map((item) => ({ ...item })),
+    enterTimeOffset,
+    loopLayer,
+    element: lineEl,
+    textElement: textEl,
+    button
+  };
+
+  updateLineButton(entry);
+
+  button.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleLineLoop(entry);
+  });
+
+  lineEl.appendChild(textEl);
+  lineEl.appendChild(button);
+  editorContent.insertBefore(lineEl, liveInput);
+  committedEntries.push(entry);
+  return entry;
+}
+
+/* 현재 줄 상태 재구성 (백스페이스 등) */
+function rebuildCurrentLineSequenceFromLiveInput() {
+  const text = liveInput.innerText.replace(/\r/g, "");
+  const keys = extractKeysFromText(text);
+  if (keys.length === 0) {
+    resetCurrentLine();
+    return;
+  }
+
+  if (currentLineTextKeys.length === 0) {
+    currentLineTextKeys = [...keys];
+    currentLineSequence = keys.map((key) => ({ key, time: 0 }));
+    currentLineStartTime = performance.now();
+    if (!typingSessionStartedAt) typingSessionStartedAt = new Date();
+    return;
+  }
+
+  let matchedCount = 0;
+  while (
+    matchedCount < currentLineTextKeys.length &&
+    matchedCount < keys.length &&
+    currentLineTextKeys[matchedCount] === keys[matchedCount]
+  ) {
+    matchedCount++;
+  }
+
+  currentLineTextKeys = [...keys];
+  currentLineSequence = currentLineSequence.slice(0, matchedCount);
+  if (currentLineSequence.length === 0) currentLineStartTime = performance.now();
+}
+
+/* 날짜 포맷팅 */
+function formatSessionDate(date) {
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${year}.${month}.${day} ${hours}:${minutes}:${seconds}`;
+}
+
+/* PDF용 이미지 라인 렌더링 */
+function renderPdfLines() {
+  pdfHeader.textContent = formatSessionDate(typingSessionStartedAt);
+  pdfLines.innerHTML = "";
+
+  const exportLines = [
+    ...committedEntries.map((entry) => entry.keys),
+    currentLineTextKeys.length ? [...currentLineTextKeys] : []
+  ];
+
+  if (exportLines.length === 0) {
+    const lineEl = document.createElement("div");
+    lineEl.className = "pdf-line is-empty";
+    pdfLines.appendChild(lineEl);
+    return;
+  }
+
+  exportLines.forEach((line) => {
+    const lineEl = document.createElement("div");
+    lineEl.className = "pdf-line";
+    if (line.length === 0) lineEl.classList.add("is-empty");
+
+    line.forEach((key) => {
+      const src = primaryImageMap[key];
+      if (!src) return;
+      const img = document.createElement("img");
+      img.src = src;
+      img.className = "pdf-image";
+      img.alt = key;
+      lineEl.appendChild(img);
+    });
+
+    pdfLines.appendChild(lineEl);
+  });
+}
+
+/* PDF 오버레이 열기/닫기 */
+function openPdfOverlay() {
+  renderPdfLines();
+  pdfOverlay.classList.add("is-visible");
+  pdfOverlay.setAttribute("aria-hidden", "false");
+}
+
+function closePdfOverlay() {
+  pdfOverlay.classList.remove("is-visible");
+  pdfOverlay.setAttribute("aria-hidden", "true");
+  focusLiveInput();
+}
+
+/* 입력 이벤트 */
+liveInput.addEventListener("keydown", (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+
+  const key = e.key.toLowerCase();
+
+  if (/^[a-z]$/.test(key)) {
+    playSound(key, 1);
+    showTypingImage(key);
+    recordKey(key);
+    return;
+  }
+
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const text = liveInput.innerText.replace(/\r/g, "").replace(/\n/g, "");
+    const keys = [...currentLineTextKeys];
+    const sequence = currentLineSequence.map((item) => ({ ...item }));
+
+    if (text.trim() === "" && keys.length === 0) {
+      const br = document.createElement("div");
+      br.innerHTML = "<br>";
+      editorContent.insertBefore(br, liveInput);
+      requestAnimationFrame(() => {
+        focusLiveInput();
+      });
+      return;
+    }
+
+    /* ★ 수정된 부분: 엔터 시점 offset 계산 */
+    let enterTimeOffset = null;
+    if (currentLineStartTime != null) {
+      const now = performance.now();
+      enterTimeOffset = now - currentLineStartTime;
+    }
+
+    createCommittedLine(text, keys, sequence, enterTimeOffset);
+    liveInput.innerHTML = "";
+    resetCurrentLine();
+    requestAnimationFrame(() => {
+      focusLiveInput();
+    });
+    return;
+  }
+
+  if (e.key === "Backspace" || e.key === "Delete") {
+    requestAnimationFrame(() => {
+      rebuildCurrentLineSequenceFromLiveInput();
+    });
+  }
+});
+
+liveInput.addEventListener("input", () => {
+  rebuildCurrentLineSequenceFromLiveInput();
+});
+
+/* 상단 버튼 이벤트 */
+stopLoopButton.addEventListener("click", () => {
+  stopAllLoopLayers();
+  focusLiveInput();
+});
+
+imageSwitchButton.addEventListener("click", () => {
+  useToggleImages = !useToggleImages;
+  imageSwitchButton.setAttribute("aria-pressed", String(useToggleImages));
+  focusLiveInput();
+});
+
+exportPdfButton.addEventListener("click", () => {
+  openPdfOverlay();
+});
+
+closePdfButton.addEventListener("click", () => {
+  closePdfOverlay();
+});
+
+downloadPdfButton.addEventListener("click", () => {
+  window.print(); /* 브라우저 인쇄 → PDF 저장 선택하면 됨 */
+});
+
+/* 초기 포커스 */
+window.addEventListener("load", () => {
+  focusLiveInput();
+});
+
+/* 바깥 클릭 시 다시 에디터 포커스 */
+document.body.addEventListener("click", (e) => {
+  if (
+    e.target === stopLoopButton ||
+    e.target === imageSwitchButton ||
+    e.target === exportPdfButton ||
+    e.target === closePdfButton ||
+    e.target === downloadPdfButton ||
+    e.target.closest(".text-line-button") ||
+    e.target.closest(".pdf-overlay")
+  ) return;
+  focusLiveInput();
+});
+
+/* 첫 클릭 시 오디오 컨텍스트 깨우기 */
+window.addEventListener("click", () => {
+  if (audioContext.state === "suspended") audioContext.resume();
+}, { once: true });
+</script>
+</body>
+</html>
